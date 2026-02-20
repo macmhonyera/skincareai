@@ -381,12 +381,28 @@ function renderLockedMessage(message) {
   `;
 }
 
+function getThemeColor(variableName, fallback) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(variableName)
+    .trim();
+  return value || fallback;
+}
+
 function drawProgressChart(progress) {
   const canvas = progressChartEl;
   const context = canvas.getContext('2d');
   if (!context) {
     return;
   }
+
+  const chartColors = {
+    textPrimary: getThemeColor('--text-primary', '#103427'),
+    textSecondary: getThemeColor('--text-secondary', '#4f7164'),
+    grid: getThemeColor('--border-light', '#cfe6d8'),
+    card: getThemeColor('--bg-card', '#ffffff'),
+    overallLine: getThemeColor('--primary', '#39b784'),
+    severityLine: getThemeColor('--secondary', '#8fd8b7'),
+  };
 
   const labels = progress?.chart?.labels || [];
   const overall = progress?.chart?.overallSkinScore || [];
@@ -395,7 +411,7 @@ function drawProgressChart(progress) {
   context.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!labels.length || !overall.length) {
-    context.fillStyle = '#3c6657';
+    context.fillStyle = chartColors.textSecondary;
     context.font = '16px Manrope, sans-serif';
     context.fillText(
       'Upload at least two skin photos to visualize progress.',
@@ -415,7 +431,7 @@ function drawProgressChart(progress) {
   const yForScore = (score) =>
     padding.top + chartHeight - (Math.max(0, Math.min(100, score)) / 100) * chartHeight;
 
-  context.strokeStyle = '#b8d8ca';
+  context.strokeStyle = chartColors.grid;
   context.lineWidth = 1;
   for (let i = 0; i <= 5; i += 1) {
     const score = i * 20;
@@ -424,7 +440,7 @@ function drawProgressChart(progress) {
     context.moveTo(padding.left, y);
     context.lineTo(canvas.width - padding.right, y);
     context.stroke();
-    context.fillStyle = '#6a8b7c';
+    context.fillStyle = chartColors.textSecondary;
     context.font = '12px Manrope, sans-serif';
     context.fillText(String(score), 16, y + 4);
   }
@@ -447,7 +463,7 @@ function drawProgressChart(progress) {
     values.forEach((value, index) => {
       const x = xForIndex(index);
       const y = yForScore(value);
-      context.fillStyle = '#ffffff';
+      context.fillStyle = chartColors.card;
       context.beginPath();
       context.arc(x, y, 4, 0, Math.PI * 2);
       context.fill();
@@ -457,25 +473,25 @@ function drawProgressChart(progress) {
     });
   };
 
-  drawLine(overall, '#2f8f6f');
-  drawLine(severity.map((value) => 100 - value), '#d47842');
+  drawLine(overall, chartColors.overallLine);
+  drawLine(severity.map((value) => 100 - value), chartColors.severityLine);
 
   labels.forEach((label, index) => {
     const x = xForIndex(index);
-    context.fillStyle = '#2d5648';
+    context.fillStyle = chartColors.textSecondary;
     context.font = '11px Manrope, sans-serif';
     context.fillText(label, x - 16, canvas.height - 15);
   });
 
-  context.fillStyle = '#2f8f6f';
+  context.fillStyle = chartColors.overallLine;
   context.fillRect(canvas.width - 300, 12, 10, 10);
-  context.fillStyle = '#244f42';
+  context.fillStyle = chartColors.textPrimary;
   context.font = '12px Manrope, sans-serif';
   context.fillText('Overall Skin Score', canvas.width - 284, 22);
 
-  context.fillStyle = '#d47842';
+  context.fillStyle = chartColors.severityLine;
   context.fillRect(canvas.width - 155, 12, 10, 10);
-  context.fillStyle = '#244f42';
+  context.fillStyle = chartColors.textPrimary;
   context.fillText('Lower Concern Severity', canvas.width - 139, 22);
 }
 
