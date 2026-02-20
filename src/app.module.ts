@@ -12,6 +12,7 @@ import { ProductsModule } from './products/products.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { AiModule } from './ai/ai.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
     RecommendationsModule,
     AiModule,
     MarketplaceModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],

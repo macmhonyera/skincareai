@@ -1,20 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendationsService } from './recommendations.service';
+import { OptionalAuthGuard } from 'src/auth/optional-auth.guard';
+import { AuthGuard } from 'src/auth/auth.guard';
 
 describe('RecommendationsController', () => {
   let controller: RecommendationsController;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    const moduleBuilder = Test.createTestingModule({
       controllers: [RecommendationsController],
       providers: [
         {
           provide: RecommendationsService,
-          useValue: { getRecommendations: jest.fn() },
+          useValue: {
+            getRecommendations: jest.fn(),
+            getRecommendationsWithImage: jest.fn(),
+            getHistory: jest.fn(),
+            getPhotoProgress: jest.fn(),
+          },
         },
       ],
-    }).compile();
+    });
+
+    moduleBuilder
+      .overrideGuard(OptionalAuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) });
+    moduleBuilder
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) });
+
+    const module: TestingModule = await moduleBuilder.compile();
 
     controller = module.get<RecommendationsController>(RecommendationsController);
   });

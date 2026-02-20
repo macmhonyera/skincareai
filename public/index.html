@@ -21,13 +21,135 @@
     <div class="ambient ambient-right"></div>
 
     <main class="page">
-      <section class="hero reveal">
-        <p class="tag">AI SKINCARE RECOMMENDER</p>
-        <h1>Build a routine that fits your skin, not the trend.</h1>
-        <p class="subtitle">
-          Tell us about your skin. Get ingredient-level recommendations and
-          matching products in seconds.
-        </p>
+      <header class="topbar reveal">
+        <div class="brand-block">
+          <p class="tag">AI SKINCARE RECOMMENDER</p>
+          <p class="brand-title">SkinSense AI</p>
+        </div>
+
+        <div class="top-actions">
+          <p id="auth-status" class="auth-pill">
+            Guest mode. Recommendation is open.
+          </p>
+          <button id="auth-toggle-btn" type="button" class="secondary">
+            Sign In
+          </button>
+          <button id="upgrade-pro-btn" type="button" class="secondary hidden">
+            Upgrade To Pro
+          </button>
+          <button id="logout-btn" type="button" class="secondary hidden">
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <section class="hero reveal delay-1">
+        <div class="hero-copy">
+          <h1>Track skin health with smarter routines and cleaner progress.</h1>
+          <p class="subtitle">
+            Ask for recommendations instantly. Sign in only when you want saved
+            history, photo-to-photo progress, and personalized continuity.
+          </p>
+        </div>
+
+        <div class="hero-side">
+          <article class="hero-chip">
+            <span>Open Mode</span>
+            <strong>Use recommendations without account</strong>
+          </article>
+          <article class="hero-chip">
+            <span>Member Mode</span>
+            <strong>Unlock history + progress charts</strong>
+          </article>
+          <article class="hero-chip">
+            <span>Pro Mode</span>
+            <strong>Advanced image insights and weekly focus</strong>
+          </article>
+        </div>
+      </section>
+
+      <div id="auth-modal" class="auth-modal hidden">
+        <div class="auth-backdrop" data-auth-close="true"></div>
+        <section class="auth-dialog">
+          <button id="auth-modal-close" class="auth-close" type="button">
+            ×
+          </button>
+          <div class="auth-dialog-head">
+            <h3 id="auth-title">Welcome back</h3>
+            <p id="auth-subtitle" class="small">
+              Sign in to unlock history and progress tracking.
+            </p>
+          </div>
+
+          <div class="auth-switch">
+            <button id="show-login-btn" type="button" class="auth-tab active">
+              Login
+            </button>
+            <button id="show-register-btn" type="button" class="auth-tab">
+              Create Account
+            </button>
+          </div>
+
+          <form id="login-form" class="mini-form modal-form">
+            <input name="email" type="email" placeholder="Email" required />
+            <input name="password" type="password" placeholder="Password" required />
+            <button type="submit">Login</button>
+            <button id="to-register-btn" type="button" class="text-btn">
+              No account? Create one
+            </button>
+          </form>
+
+          <form id="register-form" class="mini-form modal-form hidden">
+            <input name="name" type="text" placeholder="Name" />
+            <input name="email" type="email" placeholder="Email" required />
+            <input
+              name="password"
+              type="password"
+              placeholder="Password (8+ chars)"
+              required
+            />
+            <button type="submit">Create Account</button>
+            <button id="to-login-btn" type="button" class="text-btn">
+              Already have an account? Login
+            </button>
+          </form>
+
+          <button id="google-custom-btn" type="button" class="google-custom-btn">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 48 48"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M44.5 20H24V28.5H35.8C34.7 34 30 37.5 24 37.5C16.8 37.5 11 31.7 11 24.5C11 17.3 16.8 11.5 24 11.5C27.1 11.5 29.9 12.6 32.1 14.5L38.2 8.4C34.5 5 29.5 3 24 3C12.4 3 3 12.4 3 24C3 35.6 12.4 45 24 45C35 45 44 36 44 25C44 23.3 43.8 21.6 43.5 20H44.5Z"
+                fill="#FFC107"
+              />
+              <path
+                d="M6.3 14.7L13.2 19.8C15 15.3 19.1 11.5 24 11.5C27.1 11.5 29.9 12.6 32.1 14.5L38.2 8.4C34.5 5 29.5 3 24 3C16 3 9 7.5 6.3 14.7Z"
+                fill="#FF3D00"
+              />
+              <path
+                d="M24 45C29.4 45 34.2 43.1 37.8 39.9L31.1 34.3C29.1 35.8 26.7 36.7 24 36.7C18 36.7 13.3 33.3 12.1 28H5.4C8 35.4 15.3 45 24 45Z"
+                fill="#4CAF50"
+              />
+              <path
+                d="M44.5 20H24V28.5H35.8C35.2 31.3 33.6 33.5 31.1 34.9L37.8 40.5C41.7 36.8 44.5 31.4 44.5 25C44.5 23.3 44.3 21.6 44 20H44.5Z"
+                fill="#1976D2"
+              />
+            </svg>
+            Continue with Google
+          </button>
+          <p id="google-status" class="status small"></p>
+        </section>
+      </div>
+
+      <section class="panel reveal delay-1">
+        <div class="panel-header">
+          <h2>Pro Features</h2>
+        </div>
+        <ul id="pro-features-list" class="feature-list"></ul>
       </section>
 
       <section class="panel reveal delay-1">
@@ -48,7 +170,9 @@
             <legend>Skin Concerns</legend>
             <div class="chips">
               <label><input type="checkbox" value="acne" />Acne</label>
-              <label><input type="checkbox" value="hyperpigmentation" />Pigmentation</label>
+              <label
+                ><input type="checkbox" value="hyperpigmentation" />Pigmentation</label
+              >
               <label><input type="checkbox" value="redness" />Redness</label>
               <label><input type="checkbox" value="sensitivity" />Sensitivity</label>
               <label><input type="checkbox" value="dehydration" />Dehydration</label>
@@ -86,12 +210,48 @@
             </select>
           </label>
 
+          <label class="field">
+            <span>Upload Skin Photo (optional)</span>
+            <input name="skinImage" type="file" accept="image/*" />
+          </label>
+
+          <label class="field">
+            <span>Photo Notes (optional)</span>
+            <input
+              name="photoNotes"
+              type="text"
+              placeholder="daylight, no makeup, after cleansing"
+            />
+          </label>
+
           <button id="submit-btn" type="submit">
             Generate My Recommendations
           </button>
         </form>
 
         <p id="status" class="status"></p>
+      </section>
+
+      <section class="panel reveal delay-2">
+        <div class="panel-header">
+          <h2>Saved Recommendation History</h2>
+          <button id="load-history-btn" type="button" class="secondary">
+            Load History
+          </button>
+        </div>
+        <div id="history-list" class="products"></div>
+      </section>
+
+      <section class="panel reveal delay-2">
+        <div class="panel-header">
+          <h2>Photo Progress Comparison</h2>
+          <button id="load-progress-btn" type="button" class="secondary">
+            Load Progress
+          </button>
+        </div>
+        <canvas id="progress-chart" width="1000" height="300"></canvas>
+        <div id="progress-summary" class="products"></div>
+        <div id="progress-comparison" class="comparison-grid"></div>
       </section>
 
       <section id="results" class="results hidden">
@@ -115,6 +275,16 @@
             <h2>Routine Suggestions</h2>
             <div id="routine-block" class="routine"></div>
           </article>
+
+          <article class="result-card reveal delay-2">
+            <h2>Image Analysis</h2>
+            <div id="image-analysis-block" class="routine"></div>
+          </article>
+
+          <article class="result-card reveal delay-3">
+            <h2>Pro Insights</h2>
+            <div id="pro-insights-block" class="routine"></div>
+          </article>
         </div>
 
         <article id="marketplace-card" class="result-card reveal delay-3 hidden">
@@ -124,6 +294,10 @@
       </section>
     </main>
 
+    <script>
+      window.SKINCARE_GOOGLE_CLIENT_ID = '';
+    </script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="/app.js"></script>
   </body>
 </html>

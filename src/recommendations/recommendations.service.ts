@@ -6,10 +6,46 @@ import { Ingredient } from 'src/ingredient/entities/ingredient.entity';
 import { IngredientsService } from 'src/ingredient/ingredient.service';
 import { MarketplaceService } from 'src/marketplace/marketplace.service';
 import { Product } from 'src/products/entities/product.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Recommendation } from './entities/recommendation.entity';
+import { Repository } from 'typeorm';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 type RankedProduct = Product & {
   matchScore: number;
   matchedIngredients: string[];
+};
+
+type RecommendationContext = {
+  userId: string | null;
+  planTier: 'free' | 'pro';
+  source: 'form' | 'image';
+};
+
+type NormalizedProfile = {
+  skinType: string;
+  concerns: string[];
+  sensitivities: string[];
+  routineGoal?: string;
+  budgetLevel?: string;
+};
+
+type ImageAnalysis = {
+  suggestedSkinType: string | null;
+  detectedConcerns: string[];
+  observations: string[];
+  confidence: number;
+  concernScores: {
+    acne: number;
+    pigmentation: number;
+    redness: number;
+    texture: number;
+    dehydration: number;
+    oiliness: number;
+  };
+  overallSkinScore: number;
 };
 
 @Injectable()
@@ -61,24 +97,184 @@ export class RecommendationsService {
     private readonly productsService: ProductsService,
     private readonly ingredientsService: IngredientsService,
     private readonly marketplaceService: MarketplaceService,
+    @InjectRepository(Recommendation)
+    private readonly recommendationRepository: Repository<Recommendation>,
   ) {}
 
-  async getRecommendations(dto: RecommendDto) {
-    const skinType = this.normalizeValue(dto.skinType) || 'normal';
-    const concerns = this.normalizeUnknownList(dto.skinConcerns);
-    const sensitivities = this.normalizeUnknownList(dto.sensitivities ?? []);
+  async getRecommendations(
+    dto: RecommendDto,
+    context?: Partial<RecommendationContext>,
+  ) {
+    const profile = this.buildNormalizedProfile(dto);
+    const resolvedContext: RecommendationContext = {
+      userId: context?.userId ?? null,
+      source: context?.source ?? 'form',
+      planTier: context?.planTier ?? 'free',
+    };
+
+    return this.buildRecommendationResponse(profile, resolvedContext, null, null);
+  }
+
+  async getRecommendationsWithImage(
+    dto: RecommendDto,
+    image: { buffer: Buffer; mimetype: string },
+    context: Pick<RecommendationContext, 'userId' | 'planTier'>,
+  ) {
+    const providedSkinType = this.normalizeValue(dto.skinType);
+    const providedConcerns = this.normalizeUnknownList(dto.skinConcerns);
+
+    let imageAnalysis: ImageAnalysis;
+    try {
+      imageAnalysis = await this.mistralService.analyzeSkinImage({
+        imageBase64: image.buffer.toString('base64'),
+        mimeType: image.mimetype,
+        notes:
+          typeof dto.photoNotes === 'string'
+            ? dto.photoNotes
+            : 'User submitted skin image',
+        skinTypeHint: providedSkinType || undefined,
+        concernsHint: providedConcerns,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Image analysis failed; proceeding with profile-only logic: ${message}`,
+      );
+
+      imageAnalysis = {
+        suggestedSkinType: null,
+        detectedConcerns: [],
+        observations: [],
+        confidence: 0,
+        concernScores: {
+          acne: 50,
+          pigmentation: 50,
+          redness: 50,
+          texture: 50,
+          dehydration: 50,
+          oiliness: 50,
+        },
+        overallSkinScore: 50,
+      };
+    }
+
+    const mergedProfile: NormalizedProfile = {
+      skinType:
+        providedSkinType ||
+        this.normalizeValue(imageAnalysis.suggestedSkinType) ||
+        'normal',
+      concerns: this.normalizeList([
+        ...providedConcerns,
+        ...imageAnalysis.detectedConcerns,
+      ]),
+      sensitivities: this.normalizeUnknownList(dto.sensitivities ?? []),
+      routineGoal:
+        typeof dto.routineGoal === 'string' ? dto.routineGoal.trim() : undefined,
+      budgetLevel:
+        typeof dto.budgetLevel === 'string'
+          ? dto.budgetLevel.trim().toLowerCase()
+          : undefined,
+    };
+
+    const imageUrl = await this.persistProgressImage(image, context.userId);
+
+    return this.buildRecommendationResponse(
+      mergedProfile,
+      { ...context, source: 'image' },
+      imageAnalysis,
+      imageUrl,
+    );
+  }
+
+  async getHistory(userId: string, limit = 20) {
+    const take = Math.max(1, Math.min(100, limit));
+    const items = await this.recommendationRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take,
+    });
+
+    return {
+      count: items.length,
+      items,
+    };
+  }
+
+  async getPhotoProgress(userId: string, limit = 15) {
+    const take = Math.max(2, Math.min(60, limit));
+    const recentItems = await this.recommendationRepository.find({
+      where: { userId, source: 'image' },
+      order: { createdAt: 'DESC' },
+      take,
+    });
+
+    const points = recentItems
+      .reverse()
+      .map((item) => this.toProgressPoint(item))
+      .filter(
+        (
+          point,
+        ): point is {
+          id: string;
+          createdAt: string;
+          imageUrl: string | null;
+          overallSkinScore: number;
+          averageConcernSeverity: number;
+          confidence: number;
+          concernScores: Record<string, number>;
+        } => point !== null,
+      );
+
+    const labels = points.map((point) =>
+      new Date(point.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }),
+    );
+    const overallSkinScore = points.map((point) => point.overallSkinScore);
+    const averageConcernSeverity = points.map(
+      (point) => point.averageConcernSeverity,
+    );
+    const confidence = points.map((point) => point.confidence);
+
+    const latest = points.length > 0 ? points[points.length - 1] : null;
+    const previous = points.length > 1 ? points[points.length - 2] : null;
+
+    const comparison = this.buildProgressComparison(previous, latest);
+
+    return {
+      count: points.length,
+      points,
+      chart: {
+        labels,
+        overallSkinScore,
+        averageConcernSeverity,
+        confidence,
+      },
+      comparison,
+    };
+  }
+
+  private async buildRecommendationResponse(
+    profile: NormalizedProfile,
+    context: RecommendationContext,
+    imageAnalysis: ImageAnalysis | null,
+    imageUrl: string | null,
+  ) {
+    const concerns = profile.concerns;
+    const sensitivities = profile.sensitivities;
 
     const ruleBasedIngredients = this.buildRuleBasedIngredients(
-      skinType,
+      profile.skinType,
       concerns,
       sensitivities,
     );
     const aiIngredients = await this.getAiIngredients({
-      skinType,
+      skinType: profile.skinType,
       concerns,
       sensitivities,
-      routineGoal: dto.routineGoal,
-      budgetLevel: dto.budgetLevel,
+      routineGoal: profile.routineGoal,
+      budgetLevel: profile.budgetLevel,
     });
 
     const recommendedIngredients = this.limitIngredients(
@@ -105,23 +301,342 @@ export class RecommendationsService {
           )
         : [];
 
-    return {
+    const response: Record<string, unknown> = {
       profile: {
-        skinType,
+        skinType: profile.skinType,
         skinConcerns: concerns,
         sensitivities,
-        routineGoal: dto.routineGoal ?? null,
-        budgetLevel: dto.budgetLevel ?? null,
+        routineGoal: profile.routineGoal ?? null,
+        budgetLevel: profile.budgetLevel ?? null,
       },
       recommendedIngredients,
       ingredientInsights,
       matchingProducts: rankedProducts,
       marketplaceLinks,
       routine: this.buildRoutine(recommendedIngredients, concerns),
+      imageAnalysis,
+      imageSnapshotUrl: imageUrl,
       meta: {
         source: aiIngredients.length > 0 ? 'ai+rules' : 'rules-only',
         generatedAt: new Date().toISOString(),
+        planTier: context.planTier,
+        inputSource: context.source,
       },
+    };
+
+    if (context.planTier === 'pro') {
+      response.proInsights = this.buildProInsights(
+        recommendedIngredients,
+        concerns,
+        imageAnalysis,
+      );
+    }
+
+    await this.saveHistoryIfNeeded(
+      context.userId,
+      context.source,
+      profile,
+      response,
+      imageAnalysis,
+      imageUrl,
+    );
+
+    return response;
+  }
+
+  private toProgressPoint(item: Recommendation) {
+    const scores = this.extractAnalysisScores(item);
+    if (!scores) {
+      return null;
+    }
+
+    const concernValues = Object.values(scores.concernScores);
+    const averageConcernSeverity =
+      concernValues.length > 0
+        ? Math.round(
+            concernValues.reduce((total, value) => total + value, 0) /
+              concernValues.length,
+          )
+        : 0;
+
+    return {
+      id: item.id,
+      createdAt: item.createdAt.toISOString(),
+      imageUrl: item.imageUrl,
+      overallSkinScore: scores.overallSkinScore,
+      averageConcernSeverity,
+      confidence: scores.confidence,
+      concernScores: scores.concernScores,
+    };
+  }
+
+  private buildProgressComparison(
+    previous:
+      | {
+          id: string;
+          createdAt: string;
+          imageUrl: string | null;
+          overallSkinScore: number;
+          averageConcernSeverity: number;
+          confidence: number;
+          concernScores: Record<string, number>;
+        }
+      | null,
+    latest:
+      | {
+          id: string;
+          createdAt: string;
+          imageUrl: string | null;
+          overallSkinScore: number;
+          averageConcernSeverity: number;
+          confidence: number;
+          concernScores: Record<string, number>;
+        }
+      | null,
+  ) {
+    if (!latest) {
+      return {
+        previous: null,
+        latest: null,
+        deltas: null,
+        summary: 'Upload at least one skin photo to start progress tracking.',
+      };
+    }
+
+    if (!previous) {
+      return {
+        previous: null,
+        latest,
+        deltas: null,
+        summary:
+          'Upload one more skin photo to unlock before/after comparison insights.',
+      };
+    }
+
+    const concernDeltas: Record<string, number> = {};
+    const keys = new Set([
+      ...Object.keys(previous.concernScores),
+      ...Object.keys(latest.concernScores),
+    ]);
+
+    for (const key of keys) {
+      const previousScore = previous.concernScores[key] ?? 0;
+      const latestScore = latest.concernScores[key] ?? 0;
+      concernDeltas[key] = previousScore - latestScore;
+    }
+
+    const overallDelta = latest.overallSkinScore - previous.overallSkinScore;
+    const severityDelta =
+      previous.averageConcernSeverity - latest.averageConcernSeverity;
+
+    let summary = 'Skin status appears stable between the last two photo check-ins.';
+    if (overallDelta >= 4 || severityDelta >= 4) {
+      summary = 'Positive trend detected compared to your previous photo.';
+    } else if (overallDelta <= -4 || severityDelta <= -4) {
+      summary =
+        'Recent photo suggests a setback. Consider simplifying actives and focusing on barrier care.';
+    }
+
+    return {
+      previous,
+      latest,
+      deltas: {
+        overallSkinScore: overallDelta,
+        averageConcernSeverity: severityDelta,
+        concernDeltas,
+      },
+      summary,
+    };
+  }
+
+  private extractAnalysisScores(item: Recommendation): {
+    overallSkinScore: number;
+    confidence: number;
+    concernScores: Record<string, number>;
+  } | null {
+    const scoresRaw = item.analysisScores as
+      | {
+          overallSkinScore?: unknown;
+          confidence?: unknown;
+          concernScores?: Record<string, unknown>;
+        }
+      | null;
+
+    const fallbackRaw = item.imageAnalysis as
+      | {
+          overallSkinScore?: unknown;
+          confidence?: unknown;
+          concernScores?: Record<string, unknown>;
+        }
+      | null;
+
+    const source = scoresRaw ?? fallbackRaw;
+    if (!source) {
+      return null;
+    }
+
+    const concernScoresRaw = source.concernScores ?? {};
+    const concernScores = {
+      acne: this.normalizeNumber(concernScoresRaw.acne, 0, 100, 50),
+      pigmentation: this.normalizeNumber(
+        concernScoresRaw.pigmentation,
+        0,
+        100,
+        50,
+      ),
+      redness: this.normalizeNumber(concernScoresRaw.redness, 0, 100, 50),
+      texture: this.normalizeNumber(concernScoresRaw.texture, 0, 100, 50),
+      dehydration: this.normalizeNumber(
+        concernScoresRaw.dehydration,
+        0,
+        100,
+        50,
+      ),
+      oiliness: this.normalizeNumber(concernScoresRaw.oiliness, 0, 100, 50),
+    };
+
+    return {
+      overallSkinScore: this.normalizeNumber(
+        source.overallSkinScore,
+        0,
+        100,
+        50,
+      ),
+      confidence: this.normalizeNumber(source.confidence, 0, 1, 0.5),
+      concernScores,
+    };
+  }
+
+  private async persistProgressImage(
+    image: { buffer: Buffer; mimetype: string },
+    userId: string | null,
+  ): Promise<string | null> {
+    if (!image?.buffer || image.buffer.length === 0) {
+      return null;
+    }
+
+    const uploadDir = join(process.cwd(), 'uploads', 'skin-progress');
+    await mkdir(uploadDir, { recursive: true });
+
+    const extension = this.getImageExtension(image.mimetype);
+    const filename = `${userId ?? 'anonymous'}-${Date.now()}-${randomUUID()}.${extension}`;
+    const filePath = join(uploadDir, filename);
+
+    await writeFile(filePath, image.buffer);
+
+    return `/uploads/skin-progress/${filename}`;
+  }
+
+  private getImageExtension(mimetype: string): string {
+    const map: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    };
+
+    return map[mimetype] ?? 'jpg';
+  }
+
+  private normalizeNumber(
+    value: unknown,
+    min: number,
+    max: number,
+    fallback: number,
+  ): number {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return fallback;
+    }
+
+    return Math.max(min, Math.min(max, Math.round(value * 100) / 100));
+  }
+
+  private async saveHistoryIfNeeded(
+    userId: string | null,
+    source: 'form' | 'image',
+    profile: NormalizedProfile,
+    recommendation: Record<string, unknown>,
+    imageAnalysis: ImageAnalysis | null,
+    imageUrl: string | null,
+  ) {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      const entity = this.recommendationRepository.create({
+        userId,
+        source,
+        profileSnapshot: {
+          skinType: profile.skinType,
+          concerns: profile.concerns,
+          sensitivities: profile.sensitivities,
+          routineGoal: profile.routineGoal ?? null,
+          budgetLevel: profile.budgetLevel ?? null,
+        },
+        recommendationSnapshot: {
+          recommendedIngredients:
+            recommendation.recommendedIngredients ?? ([] as string[]),
+          routine: recommendation.routine ?? null,
+          meta: recommendation.meta ?? null,
+        },
+        imageAnalysis,
+        imageUrl,
+        analysisScores: imageAnalysis
+          ? {
+              overallSkinScore: imageAnalysis.overallSkinScore,
+              concernScores: imageAnalysis.concernScores,
+              confidence: imageAnalysis.confidence,
+            }
+          : null,
+      });
+
+      await this.recommendationRepository.save(entity);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to save recommendation history: ${message}`);
+    }
+  }
+
+  private buildProInsights(
+    ingredients: string[],
+    concerns: string[],
+    imageAnalysis: ImageAnalysis | null,
+  ) {
+    const layeringWarnings: string[] = [];
+    if (ingredients.includes('retinol') && ingredients.includes('glycolic acid')) {
+      layeringWarnings.push(
+        'Do not combine retinol and glycolic acid in the same night routine.',
+      );
+    }
+    if (ingredients.includes('retinol') && ingredients.includes('benzoyl peroxide')) {
+      layeringWarnings.push(
+        'Alternate retinol and benzoyl peroxide on separate nights.',
+      );
+    }
+
+    return {
+      weeklyFocus: concerns.slice(0, 2),
+      layeringWarnings,
+      estimatedConsistencyWindow: '8-12 weeks',
+      imageConfidence: imageAnalysis?.confidence ?? null,
+      observationSummary: imageAnalysis?.observations ?? [],
+    };
+  }
+
+  private buildNormalizedProfile(dto: RecommendDto): NormalizedProfile {
+    return {
+      skinType: this.normalizeValue(dto.skinType) || 'normal',
+      concerns: this.normalizeUnknownList(dto.skinConcerns),
+      sensitivities: this.normalizeUnknownList(dto.sensitivities ?? []),
+      routineGoal:
+        typeof dto.routineGoal === 'string' ? dto.routineGoal.trim() : undefined,
+      budgetLevel:
+        typeof dto.budgetLevel === 'string'
+          ? dto.budgetLevel.trim().toLowerCase()
+          : undefined,
     };
   }
 
@@ -387,13 +902,32 @@ export class RecommendationsService {
     return this.normalizeList(ingredients).slice(0, max);
   }
 
-  private normalizeUnknownList(values: string[] | string | undefined): string[] {
+  private normalizeUnknownList(values: unknown): string[] {
     if (Array.isArray(values)) {
-      return this.normalizeList(values);
+      return this.normalizeList(
+        values.filter((value): value is string => typeof value === 'string'),
+      );
     }
 
     if (typeof values === 'string') {
-      return this.normalizeList(values.split(','));
+      const trimmed = values.trim();
+
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (Array.isArray(parsed)) {
+            return this.normalizeList(
+              parsed.filter(
+                (value): value is string => typeof value === 'string',
+              ),
+            );
+          }
+        } catch {
+          // ignore and fallback to comma split
+        }
+      }
+
+      return this.normalizeList(trimmed.split(','));
     }
 
     return [];

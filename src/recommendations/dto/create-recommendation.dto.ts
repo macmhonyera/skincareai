@@ -29,4 +29,10 @@ export class RecommendDto {
     example: 'medium',
   })
   budgetLevel?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional context when submitting a skin photo',
+    example: 'Taken in daylight without makeup',
+  })
+  photoNotes?: string;
 }

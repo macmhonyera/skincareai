@@ -4,6 +4,8 @@ import { MistralService } from 'src/ai/mistral.service';
 import { ProductsService } from 'src/products/products.service';
 import { IngredientsService } from 'src/ingredient/ingredient.service';
 import { MarketplaceService } from 'src/marketplace/marketplace.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Recommendation } from './entities/recommendation.entity';
 
 describe('RecommendationsService', () => {
   let service: RecommendationsService;
@@ -14,7 +16,10 @@ describe('RecommendationsService', () => {
         RecommendationsService,
         {
           provide: MistralService,
-          useValue: { getIngredientAdvice: jest.fn() },
+          useValue: {
+            getIngredientAdvice: jest.fn(),
+            analyzeSkinImage: jest.fn(),
+          },
         },
         {
           provide: ProductsService,
@@ -27,6 +32,14 @@ describe('RecommendationsService', () => {
         {
           provide: MarketplaceService,
           useValue: { searchProductsByIngredient: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Recommendation),
+          useValue: {
+            find: jest.fn(),
+            save: jest.fn(),
+            create: jest.fn(),
+          },
         },
       ],
     }).compile();
