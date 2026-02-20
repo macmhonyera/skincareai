@@ -1,11 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 export function configureApp(app: NestExpressApplication) {
   app.enableCors();
-  app.useStaticAssets(join(process.cwd(), 'public'));
+  const publicRoot = resolvePublicRoot();
+  app.useStaticAssets(publicRoot, { index: 'index.html' });
 
   const config = new DocumentBuilder()
     .setTitle('Skin Care')
@@ -29,4 +31,21 @@ export function resolvePort(app: NestExpressApplication): number {
   const configService: ConfigService = app.get(ConfigService);
   const port = Number(configService.get<string>('PORT') ?? 3000);
   return Number.isNaN(port) ? 3000 : port;
+}
+
+function resolvePublicRoot(): string {
+  const candidates = [
+    join(process.cwd(), 'public'),
+    join(__dirname, '..', 'public'),
+    join(__dirname, 'public'),
+    join(process.cwd(), '..', 'public'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, 'index.html'))) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
 }
