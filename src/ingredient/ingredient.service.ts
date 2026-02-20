@@ -18,6 +18,25 @@ export class IngredientsService {
     return this.ingredientRepository.findOne({ where: { name } });
   }
 
+  findByNames(names: string[]): Promise<Ingredient[]> {
+    const normalized = Array.from(
+      new Set(
+        (names ?? [])
+          .map((name) => name.trim().toLowerCase())
+          .filter((name) => name.length > 0),
+      ),
+    );
+
+    if (normalized.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.ingredientRepository
+      .createQueryBuilder('ingredient')
+      .where('LOWER(ingredient.name) IN (:...names)', { names: normalized })
+      .getMany();
+  }
+
   create(ingredient: Partial<Ingredient>): Promise<Ingredient> {
     const newIngredient = this.ingredientRepository.create(ingredient);
     return this.ingredientRepository.save(newIngredient);

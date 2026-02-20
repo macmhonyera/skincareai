@@ -7,6 +7,10 @@ export class MarketplaceController {
 
   @Get('products')
   async getProducts(@Query('ingredients') ingredients: string | string[]) {
+    if (!ingredients) {
+      return [];
+    }
+
     const ingredientList = Array.isArray(ingredients)
       ? ingredients
       : ingredients.split(',').map((i) => i.trim());

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RecommendDto {
   @ApiProperty({ description: 'Skin type of the user', example: 'combination' })
@@ -10,4 +10,23 @@ export class RecommendDto {
     isArray: true,
   })
   skinConcerns: string[];
+
+  @ApiPropertyOptional({
+    description: 'Known ingredient sensitivities or allergies',
+    example: ['fragrance', 'essential oils'],
+    isArray: true,
+  })
+  sensitivities?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Current skincare objective',
+    example: 'calm breakouts while fading marks',
+  })
+  routineGoal?: string;
+
+  @ApiPropertyOptional({
+    description: 'Preferred budget level for product selection',
+    example: 'medium',
+  })
+  budgetLevel?: string;
 }

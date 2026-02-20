@@ -7,6 +7,14 @@ import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import { AxiosError } from 'axios';
 
+type RecommendationProfile = {
+  skinType: string;
+  concerns: string[];
+  sensitivities?: string[];
+  routineGoal?: string;
+  budgetLevel?: string;
+};
+
 @Injectable()
 export class MistralService {
   constructor(
@@ -14,11 +22,20 @@ export class MistralService {
     private readonly configService: ConfigService,
   ) {}
 
-  async getIngredientAdvice(
-    skinType: string,
-    concerns: string[],
-  ): Promise<string> {
-    const prompt = `Suggest 5 to 10 skincare ingredients as a raw JSON array (no markdown, no code block, no explanation). Only return: ["ingredient1", "ingredient2", ...]. This is for skin type: ${skinType}, concerns: ${concerns.join(', ')}.`;
+  async getIngredientAdvice(profile: RecommendationProfile): Promise<string> {
+    const prompt = [
+      'You are a cosmetic formulation assistant.',
+      'Return 6-10 skincare ingredients as a raw JSON string array only.',
+      'No markdown, no explanation, no extra keys.',
+      `Skin type: ${profile.skinType}.`,
+      `Concerns: ${profile.concerns.join(', ')}.`,
+      `Sensitivities: ${(profile.sensitivities ?? []).join(', ') || 'none'}.`,
+      `Goal: ${profile.routineGoal ?? 'general skin health'}.`,
+      `Budget level: ${profile.budgetLevel ?? 'not specified'}.`,
+      'Avoid ingredients that conflict with listed sensitivities.',
+      'Respond exactly like ["ingredient 1", "ingredient 2"].',
+    ].join(' ');
+
     const apiKey = this.configService.get<string>('OPENROUTER_API_KEY');
 
     if (!apiKey) {

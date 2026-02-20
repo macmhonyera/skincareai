@@ -17,8 +17,20 @@ export class ProductsService {
   }
 
   findByIngredients(ingredients: string[]): Promise<Product[]> {
+    const normalized = Array.from(
+      new Set(
+        (ingredients ?? [])
+          .map((ingredient) => ingredient.trim().toLowerCase())
+          .filter((ingredient) => ingredient.length > 0),
+      ),
+    );
+
+    if (normalized.length === 0) {
+      return Promise.resolve([]);
+    }
+
     return this.productRepository.find({
-      where: ingredients.map((ingredient) => ({
+      where: normalized.map((ingredient) => ({
         ingredients: ILike(`%${ingredient}%`),
       })),
     });

@@ -17,8 +17,6 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
-      exclude: ['/api*'],
-      renderPath: '/',
       serveRoot: '/uploads',
     }),
     ConfigModule.forRoot({

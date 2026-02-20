@@ -7,5 +7,6 @@ import { MarketplaceService } from './marketplace.service';
   imports: [HttpModule],
   controllers: [MarketplaceController],
   providers: [MarketplaceService],
+  exports: [MarketplaceService],
 })
 export class MarketplaceModule {}

@@ -3,20 +3,12 @@ import { RecommendationsService } from './recommendations.service';
 import { RecommendationsController } from './recommendations.controller';
 import { ProductsModule } from 'src/products/products.module';
 import { AiModule } from 'src/ai/ai.module';
-import { MistralService } from 'src/ai/mistral.service';
-import { ProductsService } from 'src/products/products.service';
-import { HttpModule } from '@nestjs/axios';
-import { TypeOrmModule } from 'src/database/typeorm-ex.module';
-import { ProductRepository } from 'src/products/products.repository';
+import { IngredientModule } from 'src/ingredient/ingredient.module';
+import { MarketplaceModule } from 'src/marketplace/marketplace.module';
 
 @Module({
-  imports: [
-    HttpModule,
-    TypeOrmModule.forCustomRepository([ProductRepository]),
-    ProductsModule,
-    AiModule,
-  ],
+  imports: [ProductsModule, AiModule, IngredientModule, MarketplaceModule],
   controllers: [RecommendationsController],
-  providers: [RecommendationsService, MistralService, ProductsService],
+  providers: [RecommendationsService],
 })
 export class RecommendationsModule {}

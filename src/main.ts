@@ -6,11 +6,15 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors();
+  app.useStaticAssets(join(process.cwd(), 'public'));
+
   const config = new DocumentBuilder()
     .setTitle('Skin Care')
     .setDescription('Skin Care - Know what you need for your skin')
@@ -28,7 +32,10 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   const configService: ConfigService = app.get(ConfigService);
-  await app.listen(configService.get('PORT', '0.0.0.0'));
-  console.log('Application running on port: ' + configService.get('PORT'));
+  const port = Number(configService.get<string>('PORT') ?? 3000);
+  await app.listen(Number.isNaN(port) ? 3000 : port);
+  console.log(
+    'Application running on port: ' + (Number.isNaN(port) ? 3000 : port),
+  );
 }
 bootstrap();

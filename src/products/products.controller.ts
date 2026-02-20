@@ -16,6 +16,10 @@ export class ProductsController {
   findByIngredients(
     @Query('ingredients') ingredients: string,
   ): Promise<Product[]> {
+    if (!ingredients) {
+      return Promise.resolve([]);
+    }
+
     const ingredientList = ingredients.split(',').map((i) => i.trim());
     return this.productsService.findByIngredients(ingredientList);
   }

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SkinSense AI</title>
+    <meta
+      name="description"
+      content="Personalized skincare ingredient and product recommendations powered by AI."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-left"></div>
+    <div class="ambient ambient-right"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <p class="tag">AI SKINCARE RECOMMENDER</p>
+        <h1>Build a routine that fits your skin, not the trend.</h1>
+        <p class="subtitle">
+          Tell us about your skin. Get ingredient-level recommendations and
+          matching products in seconds.
+        </p>
+      </section>
+
+      <section class="panel reveal delay-1">
+        <form id="recommendation-form" class="form-grid">
+          <label class="field">
+            <span>Skin Type</span>
+            <select name="skinType" required>
+              <option value="">Select skin type</option>
+              <option value="dry">Dry</option>
+              <option value="oily">Oily</option>
+              <option value="combination">Combination</option>
+              <option value="sensitive">Sensitive</option>
+              <option value="normal">Normal</option>
+            </select>
+          </label>
+
+          <fieldset class="field concerns">
+            <legend>Skin Concerns</legend>
+            <div class="chips">
+              <label><input type="checkbox" value="acne" />Acne</label>
+              <label><input type="checkbox" value="hyperpigmentation" />Pigmentation</label>
+              <label><input type="checkbox" value="redness" />Redness</label>
+              <label><input type="checkbox" value="sensitivity" />Sensitivity</label>
+              <label><input type="checkbox" value="dehydration" />Dehydration</label>
+              <label><input type="checkbox" value="aging" />Fine Lines</label>
+              <label><input type="checkbox" value="dullness" />Dullness</label>
+              <label><input type="checkbox" value="pores" />Visible Pores</label>
+            </div>
+          </fieldset>
+
+          <label class="field">
+            <span>Sensitivities / Allergies (optional)</span>
+            <input
+              name="sensitivities"
+              type="text"
+              placeholder="fragrance, essential oils"
+            />
+          </label>
+
+          <label class="field">
+            <span>Routine Goal (optional)</span>
+            <input
+              name="routineGoal"
+              type="text"
+              placeholder="calm breakouts and fade marks"
+            />
+          </label>
+
+          <label class="field">
+            <span>Budget Level (optional)</span>
+            <select name="budgetLevel">
+              <option value="">No preference</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+
+          <button id="submit-btn" type="submit">
+            Generate My Recommendations
+          </button>
+        </form>
+
+        <p id="status" class="status"></p>
+      </section>
+
+      <section id="results" class="results hidden">
+        <div class="result-grid">
+          <article class="result-card reveal delay-2">
+            <h2>Recommended Ingredients</h2>
+            <ul id="ingredient-list" class="pill-list"></ul>
+          </article>
+
+          <article class="result-card reveal delay-3">
+            <h2>Ingredient Insights</h2>
+            <div id="insights-list" class="insights"></div>
+          </article>
+
+          <article class="result-card reveal delay-2">
+            <h2>Matched Products</h2>
+            <div id="products-list" class="products"></div>
+          </article>
+
+          <article class="result-card reveal delay-3">
+            <h2>Routine Suggestions</h2>
+            <div id="routine-block" class="routine"></div>
+          </article>
+        </div>
+
+        <article id="marketplace-card" class="result-card reveal delay-3 hidden">
+          <h2>More Shopping Links</h2>
+          <div id="marketplace-list" class="products"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
