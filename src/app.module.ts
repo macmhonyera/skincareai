@@ -16,30 +16,42 @@ import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads',
-    }),
+    ...(process.env.VERCEL
+      ? []
+      : [
+          ServeStaticModule.forRoot({
+            rootPath: join(__dirname, '..', 'uploads'),
+            serveRoot: '/uploads',
+          }),
+        ]),
+
     ConfigModule.forRoot({
       envFilePath: ['.env'],
       isGlobal: true,
     }),
+
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
+
         const dbSsl =
+          databaseUrl?.includes('sslmode=require') ||
           String(configService.get<string>('DB_SSL') ?? '').toLowerCase() ===
-          'true';
+            'true';
+
         const commonOptions = {
           type: 'postgres' as const,
-          ...(dbSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+
+          ssl: dbSsl ? { rejectUnauthorized: false } : undefined,
+
           entities: [join(__dirname, '**', '*.entity.{js,ts}')],
           autoLoadEntities: true,
+
           synchronize:
             String(configService.get<string>('TYPEORM_SYNCHRONIZE') ?? 'true')
               .toLowerCase() === 'true',
+
           logging:
             String(configService.get<string>('TYPEORM_LOGGING') ?? 'false')
               .toLowerCase() === 'true',
@@ -62,6 +74,7 @@ import { AuthModule } from './auth/auth.module';
         };
       },
     }),
+
     UserModule,
     IngredientModule,
     ProductsModule,
