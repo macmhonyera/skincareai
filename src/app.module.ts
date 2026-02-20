@@ -34,16 +34,58 @@ import { AuthModule } from './auth/auth.module';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
+        const dbHost = configService.get<string>('DB_HOST') ?? 'localhost';
+        const dbSslRaw = String(configService.get<string>('DB_SSL') ?? '')
+          .trim()
+          .toLowerCase();
+
+        const dbSslFromEnv =
+          dbSslRaw === 'true' || dbSslRaw === '1'
+            ? true
+            : dbSslRaw === 'false' || dbSslRaw === '0'
+              ? false
+              : null;
+
+        let dbSslFromUrl = false;
+        let dbHostFromUrl: string | null = null;
+        if (databaseUrl) {
+          try {
+            const parsed = new URL(databaseUrl);
+            dbHostFromUrl = parsed.hostname;
+
+            const sslMode =
+              parsed.searchParams.get('sslmode')?.toLowerCase() ?? null;
+            const sslParam =
+              parsed.searchParams.get('ssl')?.toLowerCase() ?? null;
+
+            if (sslMode && sslMode !== 'disable') {
+              dbSslFromUrl = true;
+            }
+            if (sslParam === 'true' || sslParam === '1') {
+              dbSslFromUrl = true;
+            }
+          } catch {
+            dbSslFromUrl = databaseUrl.includes('sslmode=require');
+          }
+        }
+
+        const resolvedDbHost = dbHostFromUrl ?? dbHost;
+        const isLocalDbHost =
+          resolvedDbHost === 'localhost' || resolvedDbHost === '127.0.0.1';
+        const runningOnVercel = Boolean(process.env.VERCEL);
 
         const dbSsl =
-          databaseUrl?.includes('sslmode=require') ||
-          String(configService.get<string>('DB_SSL') ?? '').toLowerCase() ===
-            'true';
+          dbSslFromEnv ??
+          (dbSslFromUrl || (runningOnVercel && !isLocalDbHost));
 
         const commonOptions = {
           type: 'postgres' as const,
-
-          ssl: dbSsl ? { rejectUnauthorized: false } : undefined,
+          ...(dbSsl
+            ? {
+                ssl: { rejectUnauthorized: false },
+                extra: { ssl: { rejectUnauthorized: false } },
+              }
+            : {}),
 
           entities: [join(__dirname, '**', '*.entity.{js,ts}')],
           autoLoadEntities: true,
