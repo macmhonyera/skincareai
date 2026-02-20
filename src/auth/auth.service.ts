@@ -11,29 +11,15 @@ import { AuthTokenService, AuthTokenPayload } from './auth-token.service';
 import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { User } from '../user/entities/user.entity';
-import { GoogleLoginDto } from './dto/google-login.dto';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { ConfigService } from '@nestjs/config';
 import { UpgradePlanDto } from './dto/upgrade-plan.dto';
 
 const scryptAsync = promisify(scrypt);
-
-type GoogleTokenInfo = {
-  sub: string;
-  email: string;
-  name?: string;
-  picture?: string;
-  aud?: string;
-};
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly authTokenService: AuthTokenService,
-    private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -55,8 +41,6 @@ export class AuthService {
       email,
       name: dto.name?.trim() || null,
       passwordHash,
-      googleId: null,
-      authProvider: 'local',
       skinType: null,
       skinConcerns: null,
       sensitivities: null,
@@ -87,50 +71,6 @@ export class AuthService {
     return this.buildAuthResponse(savedUser);
   }
 
-  async googleLogin(dto: GoogleLoginDto) {
-    if (!dto.idToken && !dto.accessToken) {
-      throw new BadRequestException(
-        'Google ID token or access token is required.',
-      );
-    }
-
-    const googleInfo = dto.idToken
-      ? await this.verifyGoogleIdToken(dto.idToken)
-      : await this.verifyGoogleAccessToken(dto.accessToken!);
-
-    let user = await this.userService.findByGoogleId(googleInfo.sub);
-    if (!user) {
-      user = await this.userService.findByEmail(googleInfo.email);
-    }
-
-    if (!user) {
-      user = await this.userService.save({
-        email: googleInfo.email,
-        name: googleInfo.name?.trim() || null,
-        passwordHash: null,
-        googleId: googleInfo.sub,
-        authProvider: 'google',
-        skinType: null,
-        skinConcerns: null,
-        sensitivities: null,
-        routineGoal: null,
-        budgetLevel: null,
-        planTier: 'free',
-        profileImageUrl: googleInfo.picture ?? null,
-        lastLoginAt: new Date(),
-      });
-    } else {
-      user.googleId = googleInfo.sub;
-      user.authProvider = 'google';
-      user.name = user.name || googleInfo.name?.trim() || null;
-      user.profileImageUrl = user.profileImageUrl || googleInfo.picture || null;
-      user.lastLoginAt = new Date();
-      user = await this.userService.save(user);
-    }
-
-    return this.buildAuthResponse(user);
-  }
-
   async me(authPayload: AuthTokenPayload) {
     const user = await this.userService.findOne(authPayload.sub);
     if (!user) {
@@ -149,12 +89,6 @@ export class AuthService {
     user.planTier = dto.planTier;
     const savedUser = await this.userService.save(user);
     return this.buildAuthResponse(savedUser);
-  }
-
-  getClientConfig() {
-    return {
-      googleClientId: this.configService.get<string>('GOOGLE_CLIENT_ID') ?? '',
-    };
   }
 
   private buildAuthResponse(user: User) {
@@ -189,78 +123,5 @@ export class AuthService {
       return false;
     }
     return timingSafeEqual(key, keyBuffer);
-  }
-
-  private async verifyGoogleIdToken(idToken: string): Promise<GoogleTokenInfo> {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get('https://oauth2.googleapis.com/tokeninfo', {
-          params: {
-            id_token: idToken,
-          },
-        }),
-      );
-
-      const payload = response.data as GoogleTokenInfo;
-      if (!payload.email || !payload.sub) {
-        throw new UnauthorizedException('Invalid Google token.');
-      }
-
-      return {
-        ...payload,
-        email: payload.email.trim().toLowerCase(),
-      };
-    } catch {
-      throw new UnauthorizedException('Google token verification failed.');
-    }
-  }
-
-  private async verifyGoogleAccessToken(
-    accessToken: string,
-  ): Promise<GoogleTokenInfo> {
-    try {
-      const tokenInfoResponse = await firstValueFrom(
-        this.httpService.get('https://www.googleapis.com/oauth2/v3/tokeninfo', {
-          params: { access_token: accessToken },
-        }),
-      );
-
-      const tokenInfo = tokenInfoResponse.data as {
-        aud?: string;
-      };
-      const requiredClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-      if (requiredClientId && tokenInfo.aud && tokenInfo.aud !== requiredClientId) {
-        throw new UnauthorizedException('Google token audience mismatch.');
-      }
-
-      const userInfoResponse = await firstValueFrom(
-        this.httpService.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }),
-      );
-
-      const userInfo = userInfoResponse.data as {
-        sub?: string;
-        email?: string;
-        name?: string;
-        picture?: string;
-      };
-
-      if (!userInfo.sub || !userInfo.email) {
-        throw new UnauthorizedException('Invalid Google user profile.');
-      }
-
-      return {
-        sub: userInfo.sub,
-        email: userInfo.email.trim().toLowerCase(),
-        name: userInfo.name,
-        picture: userInfo.picture,
-        aud: tokenInfo.aud,
-      };
-    } catch {
-      throw new UnauthorizedException('Google access token verification failed.');
-    }
   }
 }

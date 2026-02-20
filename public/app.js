@@ -1,5 +1,4 @@
 const AUTH_TOKEN_KEY = 'skincare_auth_token';
-let googleClientId = window.SKINCARE_GOOGLE_CLIENT_ID || '';
 
 const form = document.getElementById('recommendation-form');
 const statusEl = document.getElementById('status');
@@ -27,8 +26,6 @@ const showLoginBtn = document.getElementById('show-login-btn');
 const showRegisterBtn = document.getElementById('show-register-btn');
 const toLoginBtn = document.getElementById('to-login-btn');
 const toRegisterBtn = document.getElementById('to-register-btn');
-const googleCustomBtn = document.getElementById('google-custom-btn');
-const googleStatusEl = document.getElementById('google-status');
 const logoutBtn = document.getElementById('logout-btn');
 const upgradeProBtn = document.getElementById('upgrade-pro-btn');
 const loadHistoryBtn = document.getElementById('load-history-btn');
@@ -43,7 +40,6 @@ const authState = {
   user: null,
 };
 
-let googleTokenClient = null;
 let authMode = 'login';
 
 function titleCase(value) {
@@ -570,13 +566,18 @@ function renderProgress(progress) {
   `;
 }
 
-async function loadProgress() {
+async function loadProgress(options = {}) {
+  const { promptAuth = false } = options;
+
   if (!authState.token) {
     progressSummaryEl.innerHTML = renderLockedMessage(
       'Photo progress is available after sign in.',
     );
     drawProgressChart(null);
     progressComparisonEl.innerHTML = '';
+    if (promptAuth) {
+      openAuthModal('login');
+    }
     return;
   }
 
@@ -638,11 +639,16 @@ async function loadCurrentUser() {
   }
 }
 
-async function loadHistory() {
+async function loadHistory(options = {}) {
+  const { promptAuth = false } = options;
+
   if (!authState.token) {
     historyListEl.innerHTML = renderLockedMessage(
       'History is available after sign in.',
     );
+    if (promptAuth) {
+      openAuthModal('login');
+    }
     return;
   }
 
@@ -656,72 +662,6 @@ async function loadHistory() {
     historyListEl.innerHTML = `<div class="product-item">History unavailable: ${
       error instanceof Error ? error.message : 'Unknown error'
     }</div>`;
-  }
-}
-
-async function initGoogleSignIn() {
-  if (!googleClientId) {
-    googleStatusEl.textContent =
-      'Google client id not configured. Set GOOGLE_CLIENT_ID in backend env.';
-    return;
-  }
-
-  let retries = 0;
-  const maxRetries = 12;
-  const check = () => {
-    if (window.google?.accounts?.oauth2) {
-      googleTokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId,
-        scope: 'openid email profile',
-        callback: async (tokenResponse) => {
-          if (!tokenResponse?.access_token) {
-            googleStatusEl.textContent = 'Google login failed.';
-            return;
-          }
-
-          try {
-            const result = await requestJson('/auth/google', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                accessToken: tokenResponse.access_token,
-              }),
-            });
-            await handleAuthSuccess(result);
-            googleStatusEl.textContent = 'Google login successful.';
-          } catch (error) {
-            googleStatusEl.textContent =
-              error instanceof Error ? error.message : 'Google login failed.';
-          }
-        },
-      });
-
-      googleStatusEl.textContent = '';
-      return;
-    }
-
-    retries += 1;
-    if (retries <= maxRetries) {
-      setTimeout(check, 400);
-    } else {
-      googleStatusEl.textContent =
-        'Could not load Google script. Refresh to retry.';
-    }
-  };
-
-  check();
-}
-
-async function loadGoogleClientId() {
-  if (googleClientId) {
-    return;
-  }
-
-  try {
-    const config = await requestJson('/auth/client-config');
-    googleClientId = String(config.googleClientId || '').trim();
-  } catch {
-    googleClientId = '';
   }
 }
 
@@ -768,16 +708,6 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     closeAuthModal();
   }
-});
-
-googleCustomBtn.addEventListener('click', () => {
-  if (!googleTokenClient) {
-    googleStatusEl.textContent =
-      'Google sign-in is not ready yet. Please retry in a moment.';
-    return;
-  }
-
-  googleTokenClient.requestAccessToken({ prompt: 'consent' });
 });
 
 registerForm.addEventListener('submit', async (event) => {
@@ -830,8 +760,8 @@ loginForm.addEventListener('submit', async (event) => {
 logoutBtn.addEventListener('click', () => {
   clearSession();
   setStatus('Logged out.');
-  loadHistory();
-  loadProgress();
+  loadHistory({ promptAuth: false });
+  loadProgress({ promptAuth: false });
 });
 
 upgradeProBtn.addEventListener('click', async () => {
@@ -858,11 +788,11 @@ upgradeProBtn.addEventListener('click', async () => {
 });
 
 loadHistoryBtn.addEventListener('click', async () => {
-  await loadHistory();
+  await loadHistory({ promptAuth: true });
 });
 
 loadProgressBtn.addEventListener('click', async () => {
-  await loadProgress();
+  await loadProgress({ promptAuth: true });
 });
 
 form.addEventListener('submit', async (event) => {
@@ -958,12 +888,10 @@ form.addEventListener('submit', async (event) => {
 });
 
 async function init() {
-  await loadGoogleClientId();
   await loadCurrentUser();
   await loadProFeatures();
-  await loadHistory();
-  await loadProgress();
-  await initGoogleSignIn();
+  await loadHistory({ promptAuth: false });
+  await loadProgress({ promptAuth: false });
 }
 
 init();

@@ -399,21 +399,6 @@ button,
   text-decoration: underline;
 }
 
-.google-custom-btn {
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.52rem;
-  border: 1px solid #cfd9d4;
-  background: #fff;
-  color: #23342d;
-  border-radius: 10px;
-  padding: 0.62rem 0.72rem;
-  font-weight: 700;
-  box-shadow: none;
-}
-
 #submit-btn {
   grid-column: span 12;
   border-radius: 14px;

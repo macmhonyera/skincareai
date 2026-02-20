@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { HttpModule } from '@nestjs/axios';
 import { UserModule } from '../user/user.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
@@ -8,7 +7,7 @@ import { AuthGuard } from './auth.guard';
 import { OptionalAuthGuard } from './optional-auth.guard';
 
 @Module({
-  imports: [HttpModule, UserModule],
+  imports: [UserModule],
   controllers: [AuthController],
   providers: [AuthService, AuthTokenService, AuthGuard, OptionalAuthGuard],
   exports: [AuthTokenService, AuthGuard, OptionalAuthGuard],

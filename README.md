@@ -7,7 +7,6 @@ AI-powered skincare recommendation platform built with NestJS.
 - Collects user skin profile input (skin type, concerns, sensitivities, goal, budget).
 - Supports user identity and personalization via:
   - Email/password registration + login
-  - Google login (ID token or OAuth access token)
 - Recommends ingredient stacks using:
   - AI generation (OpenRouter model), plus
   - Rule-based fallback logic when AI is unavailable.
@@ -42,7 +41,6 @@ OPENROUTER_API_KEY=your_openrouter_key
 AMAZON_ASSOCIATE_TAG=your_tag_optional
 
 AUTH_SECRET=your_long_random_secret
-GOOGLE_CLIENT_ID=your_google_oauth_client_id
 DB_SSL=false
 TYPEORM_SYNCHRONIZE=true
 TYPEORM_LOGGING=false
@@ -62,8 +60,6 @@ Open:
 - Frontend: `http://localhost:3000/`
 - Swagger docs: `http://localhost:3000/api`
 
-Frontend Google button reads `GOOGLE_CLIENT_ID` via `GET /auth/client-config`.
-
 ## Deploy To Vercel
 
 This repo is configured for Vercel with `vercel.json` and `api/index.ts`.
@@ -72,7 +68,6 @@ This repo is configured for Vercel with `vercel.json` and `api/index.ts`.
 2. In Vercel, import the repo.
 3. Set these Environment Variables in Vercel project settings:
    - `AUTH_SECRET`
-   - `GOOGLE_CLIENT_ID`
    - `OPENROUTER_API_KEY`
    - Database:
      - Either `DATABASE_URL` (recommended),
@@ -97,7 +92,6 @@ npm run test
 - Auth
   - `POST /auth/register`
   - `POST /auth/login`
-  - `POST /auth/google`
   - `GET /auth/me`
   - `PATCH /auth/plan` (`free` | `pro`)
   - `GET /auth/pro-features`

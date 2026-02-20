@@ -2,7 +2,6 @@ import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/comm
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { GoogleLoginDto } from './dto/google-login.dto';
 import { AuthGuard } from './auth.guard';
 import { Request } from 'express';
 import { UpgradePlanDto } from './dto/upgrade-plan.dto';
@@ -24,11 +23,6 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
-  }
-
-  @Post('google')
-  google(@Body() dto: GoogleLoginDto) {
-    return this.authService.googleLogin(dto);
   }
 
   @UseGuards(AuthGuard)
@@ -54,10 +48,5 @@ export class AuthController {
         'Personalized progress insights over time',
       ],
     };
-  }
-
-  @Get('client-config')
-  getClientConfig() {
-    return this.authService.getClientConfig();
   }
 }

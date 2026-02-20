@@ -22,8 +22,6 @@ export class UserService {
       routineGoal: createUserDto.routineGoal?.trim() || null,
       budgetLevel: createUserDto.budgetLevel?.trim().toLowerCase() || null,
       passwordHash: null,
-      googleId: null,
-      authProvider: 'local',
       planTier: 'free',
       profileImageUrl: null,
       lastLoginAt: null,
@@ -85,14 +83,6 @@ export class UserService {
     return this.userRepository.findOne({
       where: {
         email: email.trim().toLowerCase(),
-      },
-    });
-  }
-
-  findByGoogleId(googleId: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: {
-        googleId,
       },
     });
   }

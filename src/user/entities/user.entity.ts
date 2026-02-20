@@ -20,12 +20,6 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   passwordHash: string | null;
 
-  @Column({ type: 'varchar', nullable: true, unique: true })
-  googleId: string | null;
-
-  @Column({ type: 'varchar', default: 'local' })
-  authProvider: 'local' | 'google';
-
   @Column({ type: 'varchar', nullable: true })
   skinType: string | null;
 
