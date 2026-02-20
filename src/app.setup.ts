@@ -7,7 +7,19 @@ import { join } from 'path';
 export function configureApp(app: NestExpressApplication) {
   app.enableCors();
   const publicRoot = resolvePublicRoot();
+  const publicIndexFile = join(publicRoot, 'index.html');
+  const hasPublicIndexFile = existsSync(publicIndexFile);
+
+  if (!hasPublicIndexFile) {
+    console.warn(`[Static] index.html not found at ${publicIndexFile}`);
+  }
+
   app.useStaticAssets(publicRoot, { index: 'index.html' });
+  if (hasPublicIndexFile) {
+    app.getHttpAdapter().get('/', (_req, res: any) => {
+      res.sendFile(publicIndexFile);
+    });
+  }
 
   const config = new DocumentBuilder()
     .setTitle('Skin Care')
