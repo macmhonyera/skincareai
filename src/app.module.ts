@@ -25,21 +25,40 @@ import { AuthModule } from './auth/auth.module';
       isGlobal: true,
     }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule.forRoot({ isGlobal: true })],
       inject: [ConfigService],
       // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (configService: ConfigService) => {
-        return {
-          type: 'postgres',
-          host: configService.get('DB_HOST'),
-          port: configService.get('DB_PORT'),
-          username: configService.get('DB_USER'),
-          password: configService.get('DB_PASSWORD'),
-          database: configService.get('DB_NAME'),
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        const dbSsl =
+          String(configService.get<string>('DB_SSL') ?? '').toLowerCase() ===
+          'true';
+        const commonOptions = {
+          type: 'postgres' as const,
+          ...(dbSsl ? { ssl: { rejectUnauthorized: false } } : {}),
           entities: [join(__dirname, '**', '*.entity.{js,ts}')],
           autoLoadEntities: true,
-          synchronize: true, // Set to false in production
-          logging: true, // Enable logging for debugging
+          synchronize:
+            String(configService.get<string>('TYPEORM_SYNCHRONIZE') ?? 'true')
+              .toLowerCase() === 'true',
+          logging:
+            String(configService.get<string>('TYPEORM_LOGGING') ?? 'false')
+              .toLowerCase() === 'true',
+        };
+
+        if (databaseUrl) {
+          return {
+            ...commonOptions,
+            url: databaseUrl,
+          };
+        }
+
+        return {
+          ...commonOptions,
+          host: configService.get<string>('DB_HOST') ?? 'localhost',
+          port: Number(configService.get<string>('DB_PORT') ?? 5432),
+          username: configService.get<string>('DB_USER') ?? 'postgres',
+          password: configService.get<string>('DB_PASSWORD') ?? '',
+          database: configService.get<string>('DB_NAME') ?? 'skincare_ai',
         };
       },
     }),

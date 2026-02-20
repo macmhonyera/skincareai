@@ -3,16 +3,19 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { RecommendationsService } from './recommendations.service';
 import { RecommendDto } from './dto/create-recommendation.dto';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { OptionalAuthGuard } from 'src/auth/optional-auth.guard';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -47,7 +50,7 @@ export class RecommendationsController {
   @UseGuards(OptionalAuthGuard)
   @UseInterceptors(
     FileInterceptor('image', {
-      limits: { fileSize: 6 * 1024 * 1024 },
+      limits: { fileSize: 4 * 1024 * 1024 },
     }),
   )
   @Post('with-image')
@@ -95,5 +98,17 @@ export class RecommendationsController {
       req.user!.sub,
       resolvedLimit,
     );
+  }
+
+  @Get('image/:id')
+  async progressImage(@Param('id') id: string, @Res() res: Response) {
+    const image = await this.recommendationsService.getProgressImage(id);
+    if (!image) {
+      throw new NotFoundException('Progress image not found.');
+    }
+
+    res.setHeader('Content-Type', image.mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(image.data);
   }
 }

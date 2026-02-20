@@ -9,9 +9,6 @@ import { Product } from 'src/products/entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Recommendation } from './entities/recommendation.entity';
 import { Repository } from 'typeorm';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
 
 type RankedProduct = Product & {
   matchScore: number;
@@ -46,6 +43,12 @@ type ImageAnalysis = {
     oiliness: number;
   };
   overallSkinScore: number;
+};
+
+type PersistedImageAsset = {
+  imageUrl: string | null;
+  imageData: Buffer | null;
+  imageMimeType: string | null;
 };
 
 @Injectable()
@@ -112,7 +115,11 @@ export class RecommendationsService {
       planTier: context?.planTier ?? 'free',
     };
 
-    return this.buildRecommendationResponse(profile, resolvedContext, null, null);
+    return this.buildRecommendationResponse(profile, resolvedContext, null, {
+      imageUrl: null,
+      imageData: null,
+      imageMimeType: null,
+    });
   }
 
   async getRecommendationsWithImage(
@@ -176,14 +183,31 @@ export class RecommendationsService {
           : undefined,
     };
 
-    const imageUrl = await this.persistProgressImage(image, context.userId);
+    const imageAsset = this.prepareProgressImageAsset(image, context.userId);
 
     return this.buildRecommendationResponse(
       mergedProfile,
       { ...context, source: 'image' },
       imageAnalysis,
-      imageUrl,
+      imageAsset,
     );
+  }
+
+  async getProgressImage(recommendationId: string) {
+    const item = await this.recommendationRepository
+      .createQueryBuilder('recommendation')
+      .addSelect('recommendation.imageData')
+      .where('recommendation.id = :id', { id: recommendationId })
+      .getOne();
+
+    if (!item?.imageData) {
+      return null;
+    }
+
+    return {
+      mimeType: item.imageMimeType ?? 'image/jpeg',
+      data: Buffer.from(item.imageData),
+    };
   }
 
   async getHistory(userId: string, limit = 20) {
@@ -259,7 +283,7 @@ export class RecommendationsService {
     profile: NormalizedProfile,
     context: RecommendationContext,
     imageAnalysis: ImageAnalysis | null,
-    imageUrl: string | null,
+    imageAsset: PersistedImageAsset,
   ) {
     const concerns = profile.concerns;
     const sensitivities = profile.sensitivities;
@@ -315,7 +339,7 @@ export class RecommendationsService {
       marketplaceLinks,
       routine: this.buildRoutine(recommendedIngredients, concerns),
       imageAnalysis,
-      imageSnapshotUrl: imageUrl,
+      imageSnapshotUrl: imageAsset.imageUrl,
       meta: {
         source: aiIngredients.length > 0 ? 'ai+rules' : 'rules-only',
         generatedAt: new Date().toISOString(),
@@ -332,14 +356,18 @@ export class RecommendationsService {
       );
     }
 
-    await this.saveHistoryIfNeeded(
+    const savedImageUrl = await this.saveHistoryIfNeeded(
       context.userId,
       context.source,
       profile,
       response,
       imageAnalysis,
-      imageUrl,
+      imageAsset,
     );
+
+    if (savedImageUrl) {
+      response.imageSnapshotUrl = savedImageUrl;
+    }
 
     return response;
   }
@@ -507,37 +535,44 @@ export class RecommendationsService {
     };
   }
 
-  private async persistProgressImage(
+  private prepareProgressImageAsset(
     image: { buffer: Buffer; mimetype: string },
     userId: string | null,
-  ): Promise<string | null> {
+  ): PersistedImageAsset {
     if (!image?.buffer || image.buffer.length === 0) {
-      return null;
+      return {
+        imageUrl: null,
+        imageData: null,
+        imageMimeType: null,
+      };
     }
 
-    const uploadDir = join(process.cwd(), 'uploads', 'skin-progress');
-    await mkdir(uploadDir, { recursive: true });
+    if (!userId) {
+      return {
+        imageUrl: null,
+        imageData: null,
+        imageMimeType: null,
+      };
+    }
 
-    const extension = this.getImageExtension(image.mimetype);
-    const filename = `${userId ?? 'anonymous'}-${Date.now()}-${randomUUID()}.${extension}`;
-    const filePath = join(uploadDir, filename);
-
-    await writeFile(filePath, image.buffer);
-
-    return `/uploads/skin-progress/${filename}`;
+    return {
+      imageUrl: null,
+      imageData: image.buffer,
+      imageMimeType: this.normalizeImageMimeType(image.mimetype),
+    };
   }
 
-  private getImageExtension(mimetype: string): string {
-    const map: Record<string, string> = {
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg',
-      'image/png': 'png',
-      'image/webp': 'webp',
-      'image/heic': 'heic',
-      'image/heif': 'heif',
-    };
+  private normalizeImageMimeType(mimetype: string): string {
+    const allowed = new Set([
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ]);
 
-    return map[mimetype] ?? 'jpg';
+    return allowed.has(mimetype) ? mimetype : 'image/jpeg';
   }
 
   private normalizeNumber(
@@ -559,10 +594,10 @@ export class RecommendationsService {
     profile: NormalizedProfile,
     recommendation: Record<string, unknown>,
     imageAnalysis: ImageAnalysis | null,
-    imageUrl: string | null,
-  ) {
+    imageAsset: PersistedImageAsset,
+  ): Promise<string | null> {
     if (!userId) {
-      return;
+      return null;
     }
 
     try {
@@ -583,7 +618,9 @@ export class RecommendationsService {
           meta: recommendation.meta ?? null,
         },
         imageAnalysis,
-        imageUrl,
+        imageUrl: imageAsset.imageUrl,
+        imageMimeType: imageAsset.imageMimeType,
+        imageData: imageAsset.imageData,
         analysisScores: imageAnalysis
           ? {
               overallSkinScore: imageAnalysis.overallSkinScore,
@@ -593,10 +630,20 @@ export class RecommendationsService {
           : null,
       });
 
-      await this.recommendationRepository.save(entity);
+      const saved = await this.recommendationRepository.save(entity);
+
+      if (saved.imageData) {
+        const imageUrl = `/recommend/image/${saved.id}`;
+        saved.imageUrl = imageUrl;
+        await this.recommendationRepository.save(saved);
+        return imageUrl;
+      }
+
+      return saved.imageUrl;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Failed to save recommendation history: ${message}`);
+      return null;
     }
   }
 

@@ -28,6 +28,12 @@ export class Recommendation {
   @Column({ type: 'varchar', nullable: true })
   imageUrl: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  imageMimeType: string | null;
+
+  @Column({ type: 'bytea', nullable: true, select: false })
+  imageData: Buffer | null;
+
   @Column('simple-json', { nullable: true })
   analysisScores: Record<string, unknown> | null;
 
