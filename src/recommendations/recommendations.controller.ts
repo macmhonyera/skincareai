@@ -16,8 +16,8 @@ import {
 import { RecommendationsService } from './recommendations.service';
 import { RecommendDto } from './dto/create-recommendation.dto';
 import { Request, Response } from 'express';
-import { OptionalAuthGuard } from 'src/auth/optional-auth.guard';
-import { AuthGuard } from 'src/auth/auth.guard';
+import { OptionalAuthGuard } from '../auth/optional-auth.guard';
+import { AuthGuard } from '../auth/auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 type AuthenticatedRequest = Request & {

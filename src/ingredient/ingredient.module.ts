@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IngredientsController } from './ingredient.controller';
-import { TypeOrmModule } from 'src/database/typeorm-ex.module';
+import { TypeOrmModule } from '../database/typeorm-ex.module';
 import { IngredientRepository } from './ingredient.repository';
 import { IngredientsService } from './ingredient.service';
 

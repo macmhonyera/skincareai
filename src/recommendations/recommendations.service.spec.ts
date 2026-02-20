@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecommendationsService } from './recommendations.service';
-import { MistralService } from 'src/ai/mistral.service';
-import { ProductsService } from 'src/products/products.service';
-import { IngredientsService } from 'src/ingredient/ingredient.service';
-import { MarketplaceService } from 'src/marketplace/marketplace.service';
+import { MistralService } from '../ai/mistral.service';
+import { ProductsService } from '../products/products.service';
+import { IngredientsService } from '../ingredient/ingredient.service';
+import { MarketplaceService } from '../marketplace/marketplace.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Recommendation } from './entities/recommendation.entity';
 

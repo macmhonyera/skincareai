@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendationsService } from './recommendations.service';
-import { OptionalAuthGuard } from 'src/auth/optional-auth.guard';
-import { AuthGuard } from 'src/auth/auth.guard';
+import { OptionalAuthGuard } from '../auth/optional-auth.guard';
+import { AuthGuard } from '../auth/auth.guard';
 
 describe('RecommendationsController', () => {
   let controller: RecommendationsController;

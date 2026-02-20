@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProductsService } from '../products/products.service';
 import { RecommendDto } from './dto/create-recommendation.dto';
-import { MistralService } from 'src/ai/mistral.service';
-import { Ingredient } from 'src/ingredient/entities/ingredient.entity';
-import { IngredientsService } from 'src/ingredient/ingredient.service';
-import { MarketplaceService } from 'src/marketplace/marketplace.service';
-import { Product } from 'src/products/entities/product.entity';
+import { MistralService } from '../ai/mistral.service';
+import { Ingredient } from '../ingredient/entities/ingredient.entity';
+import { IngredientsService } from '../ingredient/ingredient.service';
+import { MarketplaceService } from '../marketplace/marketplace.service';
+import { Product } from '../products/entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Recommendation } from './entities/recommendation.entity';
 import { Repository } from 'typeorm';
