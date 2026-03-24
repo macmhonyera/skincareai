@@ -53,7 +53,6 @@ export class MistralService {
     ].join(' ');
 
     const apiKey = this.configService.get<string>('OPENROUTER_API_KEY');
-
     if (!apiKey) {
       throw new InternalServerErrorException('OpenRouter API key not found.');
     }
@@ -65,7 +64,7 @@ export class MistralService {
           {
             model: 'openai/gpt-4.1',
             messages: [{ role: 'user', content: prompt }],
-            max_tokens: 512, // Prevent over-quota 402 error
+            max_tokens: 512,
           },
           {
             headers: {
@@ -86,7 +85,7 @@ export class MistralService {
         axiosError.message ??
         'Unknown error occurred while calling OpenRouter API';
 
-      console.error('❌ OpenRouter API Error:', message);
+      console.error('OpenRouter API Error:', message);
       throw new InternalServerErrorException(`Mistral API Error: ${message}`);
     }
   }
@@ -104,13 +103,56 @@ export class MistralService {
     }
 
     const prompt = [
-      'You are a dermatology-aware skincare assistant.',
-      'Analyze this face photo for skincare planning only.',
+      'You are a conservative dermatology-aware cosmetic skin analyst.',
+      'You must ONLY describe clearly visible surface-level features.',
+      'Do NOT assume conditions that are not visually evident.',
+      'If visibility is limited due to lighting, blur, angle, or obstruction, state uncertainty.',
+      'Never diagnose diseases.',
+      'Only evaluate cosmetic-level features relevant to skincare planning.',
+
+      'Evaluation framework:',
+      '- Acne: visible inflamed papules, pustules, comedones.',
+      '- Pigmentation: visible dark spots or uneven tone patches.',
+      '- Redness: persistent diffuse redness or localized erythema.',
+      '- Texture: visible enlarged pores or uneven skin surface.',
+      '- Dehydration: dullness, fine surface lines, tight appearance.',
+      '- Oiliness: visible shine or sebaceous prominence.',
+
+      'Evidence gating rules:',
+      'Only include a concern in detectedConcerns if explicitly supported by a visible observation.',
+      'Each detected concern must have at least one matching observation.',
+      'If uncertain, DO NOT include it.',
+
+      'Severity scoring rules (0-100):',
+      '0-20 = minimal or not visible',
+      '21-40 = mild',
+      '41-60 = moderate',
+      '61-80 = significant',
+      '81-100 = severe',
+
+      'If no visible evidence exists for a concern, assign a score between 0 and 15.',
+      'Do NOT default to 50.',
+
+      'Relative calibration:',
+      'Compare against an average adult with normal healthy skin.',
+      'Clearly worse than average → above 60.',
+      'Slightly worse than average → 30-50.',
+      'Better than average → below 30.',
+
+      'overallSkinScore must be calculated as:',
+      '100 minus the average of all concernScores.',
+      'Round to nearest integer.',
+
+      'confidence must reflect image clarity only:',
+      '0.2-0.4 = poor quality or high uncertainty',
+      '0.5-0.7 = moderate clarity',
+      '0.8-1.0 = high clarity with strong visual evidence',
+
+      'First evaluate each concern independently, then generate final JSON after reviewing consistency.',
+
       'Return JSON object only with keys:',
       '{"suggestedSkinType":string|null,"detectedConcerns":string[],"observations":string[],"confidence":number,"concernScores":{"acne":number,"pigmentation":number,"redness":number,"texture":number,"dehydration":number,"oiliness":number},"overallSkinScore":number}.',
-      'concernScores must be severity from 0-100 where higher means worse.',
-      'overallSkinScore must be 0-100 where higher means healthier overall skin appearance.',
-      'Do not diagnose diseases. Keep concerns cosmetic and practical.',
+
       `Notes from user: ${params.notes ?? 'none'}.`,
       `Skin type hint: ${params.skinTypeHint ?? 'none'}.`,
       `Concern hint: ${(params.concernsHint ?? []).join(', ') || 'none'}.`,
@@ -158,8 +200,10 @@ export class MistralService {
         axiosError.message ??
         'Unknown error occurred while calling OpenRouter API';
 
-      console.error('❌ OpenRouter image analysis error:', message);
-      throw new InternalServerErrorException(`Image analysis error: ${message}`);
+      console.error('OpenRouter image analysis error:', message);
+      throw new InternalServerErrorException(
+        `Image analysis error: ${message}`,
+      );
     }
   }
 
@@ -172,46 +216,53 @@ export class MistralService {
         observations: [],
         confidence: 0.4,
         concernScores: {
-          acne: 50,
-          pigmentation: 50,
-          redness: 50,
-          texture: 50,
-          dehydration: 50,
-          oiliness: 50,
+          acne: 10,
+          pigmentation: 10,
+          redness: 10,
+          texture: 10,
+          dehydration: 10,
+          oiliness: 10,
         },
-        overallSkinScore: 50,
+        overallSkinScore: 85,
       };
     }
 
-    const object = parsed as {
-      suggestedSkinType?: unknown;
-      detectedConcerns?: unknown;
-      observations?: unknown;
-      confidence?: unknown;
-      concernScores?: unknown;
-      overallSkinScore?: unknown;
-    };
+    const object = parsed as any;
 
     const suggestedSkinType =
       typeof object.suggestedSkinType === 'string'
         ? object.suggestedSkinType.trim().toLowerCase()
         : null;
+
     const detectedConcerns = Array.isArray(object.detectedConcerns)
       ? object.detectedConcerns
           .filter((item) => typeof item === 'string')
           .map((item) => item.trim().toLowerCase())
       : [];
+
     const observations = Array.isArray(object.observations)
       ? object.observations
           .filter((item) => typeof item === 'string')
           .map((item) => item.trim())
       : [];
+
     const confidence =
       typeof object.confidence === 'number'
         ? Math.max(0, Math.min(1, object.confidence))
         : 0.5;
+
     const concernScores = this.parseConcernScores(object.concernScores);
-    const overallSkinScore = this.normalizeScore(object.overallSkinScore, 50);
+
+    const avg =
+      (concernScores.acne +
+        concernScores.pigmentation +
+        concernScores.redness +
+        concernScores.texture +
+        concernScores.dehydration +
+        concernScores.oiliness) /
+      6;
+
+    const overallSkinScore = Math.round(100 - avg);
 
     return {
       suggestedSkinType,
@@ -230,12 +281,12 @@ export class MistralService {
         : ({} as Record<string, unknown>);
 
     return {
-      acne: this.normalizeScore(source.acne, 50),
-      pigmentation: this.normalizeScore(source.pigmentation, 50),
-      redness: this.normalizeScore(source.redness, 50),
-      texture: this.normalizeScore(source.texture, 50),
-      dehydration: this.normalizeScore(source.dehydration, 50),
-      oiliness: this.normalizeScore(source.oiliness, 50),
+      acne: this.normalizeScore(source.acne, 10),
+      pigmentation: this.normalizeScore(source.pigmentation, 10),
+      redness: this.normalizeScore(source.redness, 10),
+      texture: this.normalizeScore(source.texture, 10),
+      dehydration: this.normalizeScore(source.dehydration, 10),
+      oiliness: this.normalizeScore(source.oiliness, 10),
     };
   }
 
@@ -243,7 +294,6 @@ export class MistralService {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       return fallback;
     }
-
     return Math.max(0, Math.min(100, Math.round(value)));
   }
 
